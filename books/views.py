@@ -7,6 +7,7 @@ from .serializers import BookSerializer,AuthorSerializer,UserCreationSerializer
 from django.contrib.auth.models import User
 from django.contrib.auth import login,logout,authenticate
 from rest_framework.permissions import AllowAny,IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 
 
 class LoginView(APIView):
@@ -55,12 +56,27 @@ class UserList(APIView):
             return Response(serializer.data,status=status.HTTP_201_CREATED)
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
     
+class BookPagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = 'page_size'
+    
 class BookList(APIView):
 
     def get(self,request):
         books = Book.objects.all()
-        serializer = BookSerializer(books,many=True)
-        return Response(serializer.data)
+        search = request.query_params.get('search')
+        ordering = request.query_params.get('ordering')
+        if search:
+            books = Book.objects.filter(title__icontains=search)
+
+        if ordering:
+            books = Book.objects.order_by(ordering)
+
+        paginator = BookPagination()
+        page = paginator.paginate_queryset(books,request)
+
+        serializer = BookSerializer(page,many=True)
+        return paginator.get_paginated_response(serializer.data)
     
     def post(self,request):
         many = isinstance(request.data,list)
